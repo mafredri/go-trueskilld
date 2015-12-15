@@ -41,7 +41,7 @@ type RateRequest struct {
 type PlayerResponse struct {
 	Mu        RoundedFloat64 `json:"mu"`
 	Sigma     RoundedFloat64 `json:"sigma"`
-	TrueSkill int64          `json:"trueskill"`
+	TrueSkill RoundedFloat64 `json:"trueskill"`
 }
 
 // RatedResponse .
@@ -92,7 +92,7 @@ func Rate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		newPlayers = append(newPlayers, PlayerResponse{
 			Mu:        RoundedFloat64(p.Mu()),
 			Sigma:     RoundedFloat64(p.Sigma()),
-			TrueSkill: ts.TrueSkill(p),
+			TrueSkill: RoundedFloat64(ts.TrueSkill(p)),
 		})
 	}
 
