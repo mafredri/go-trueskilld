@@ -49,20 +49,21 @@ POST
 
 ```json
 {
-    "mu": 25.0,
-    "sigma": 8.333,
-    "beta": 4.166,
-    "tau": 0.083,
-    "draw_probability": 10,
-    "players": [
-        {
-            "mu": 25.000,
-            "sigma": 8.333
-        }, {
-            "mu": 25.000,
-            "sigma": 8.333
-        }
-    ]
+  "mu": 25.0,
+  "sigma": 8.333,
+  "beta": 4.166,
+  "tau": 0.083,
+  "draw_probability": 10,
+  "players": [
+    {
+      "mu": 25.000,
+      "sigma": 8.333
+    },
+    {
+      "mu": 25.000,
+      "sigma": 8.333
+    }
+  ]
 }
 ```
 
