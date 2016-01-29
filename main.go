@@ -132,7 +132,8 @@ func Rate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 }
 
 func main() {
-	port := flag.Int("p", 8495, "Port to run server on")
+	bind := flag.String("bind", "", "Run server on interface (e.g. 127.0.0.1)")
+	port := flag.Int("port", 8495, "Run server on port")
 	flag.Parse()
 
 	router := httprouter.New()
@@ -140,7 +141,7 @@ func main() {
 	router.GET("/", Index)
 	router.POST("/rate", Rate)
 
-	listen := fmt.Sprintf(":%d", *port)
+	listen := fmt.Sprintf("%s:%d", *bind, *port)
 	log.Printf("Starting trueskilld on: '%s'", listen)
 	log.Fatal(http.ListenAndServe(listen, router))
 }
