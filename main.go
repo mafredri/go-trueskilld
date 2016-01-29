@@ -64,12 +64,30 @@ func Rate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		panic(err)
 	}
 
-	var ts trueskill.Config
-	if req.Mu == 0 {
-		ts, err = trueskill.NewDefault(req.DrawProb)
-	} else {
-		ts, err = trueskill.New(req.Mu, req.Sigma, req.Beta, req.Tau, req.DrawProb)
+	var (
+		mu       = trueskill.DefaultMu
+		sigma    = trueskill.DefaultSigma
+		beta     = trueskill.DefaultBeta
+		tau      = trueskill.DefaultTau
+		drawProb = trueskill.DefaultDrawProbPercentage
+	)
+	if req.Mu != 0 {
+		mu = req.Mu
 	}
+	if req.Sigma != 0 {
+		sigma = req.Sigma
+	}
+	if req.Beta != 0 {
+		beta = req.Beta
+	}
+	if req.Tau != 0 {
+		tau = req.Tau
+	}
+	if req.DrawProb != nil {
+		drawProb = *req.DrawProb
+	}
+
+	ts, err := trueskill.New(mu, sigma, beta, tau, drawProb)
 	if err != nil {
 		panic(err)
 	}
