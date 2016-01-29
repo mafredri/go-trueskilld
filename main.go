@@ -21,41 +21,41 @@ func (f RoundedFloat64) MarshalJSON() ([]byte, error) {
 	return json.Marshal(rounded)
 }
 
-// PlayerRequest .
+// PlayerRequest represent a player entry in the JSON request.
 type PlayerRequest struct {
 	Mu    float64 `json:"mu"`
 	Sigma float64 `json:"sigma"`
 }
 
-// RateRequest .
+// RateRequest represents the JSON request that defines the game setup and players.
 type RateRequest struct {
 	Mu       float64         `json:"mu"`
 	Sigma    float64         `json:"sigma"`
 	Beta     float64         `json:"beta"`
 	Tau      float64         `json:"tau"`
-	DrawProb float64         `json:"draw_probability"`
+	DrawProb *float64        `json:"draw_probability"`
 	Players  []PlayerRequest `json:"players"`
 }
 
-// PlayerResponse .
+// PlayerResponse represents the players new mu, sigma and conservative true skill.
 type PlayerResponse struct {
 	Mu        RoundedFloat64 `json:"mu"`
 	Sigma     RoundedFloat64 `json:"sigma"`
 	TrueSkill RoundedFloat64 `json:"trueskill"`
 }
 
-// RatedResponse .
+// RatedResponse represents the response from the rate endpoint containing all rated players and the probability of match outcome.
 type RatedResponse struct {
 	Players     []PlayerResponse `json:"players"`
 	Probability RoundedFloat64   `json:"probability_of_outcome"`
 }
 
-// Index .
+// Index shows that the trueskilld service is running.
 func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	fmt.Fprint(w, "trueskilld v0.1!\n")
 }
 
-// Rate .
+// Rate takes a request to rate players and calculates their true skills.
 func Rate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	decoder := json.NewDecoder(r.Body)
 	var req RateRequest
