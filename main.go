@@ -64,39 +64,34 @@ func Rate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		panic(err)
 	}
 
-	var (
-		mu       = trueskill.DefaultMu
-		sigma    = trueskill.DefaultSigma
-		beta     = trueskill.DefaultBeta
-		tau      = trueskill.DefaultTau
-		drawProb = trueskill.DefaultDrawProbPercentage
-	)
+	var opts []trueskill.Option
 	if req.Mu != 0 {
-		mu = req.Mu
+		opts = append(opts, trueskill.Mu(req.Mu))
 	}
 	if req.Sigma != 0 {
-		sigma = req.Sigma
+		opts = append(opts, trueskill.Sigma(req.Sigma))
 	}
 	if req.Beta != 0 {
-		beta = req.Beta
+		opts = append(opts, trueskill.Beta(req.Beta))
 	}
 	if req.Tau != 0 {
-		tau = req.Tau
+		opts = append(opts, trueskill.Tau(req.Tau))
 	}
 	if req.DrawProb != nil {
-		drawProb = *req.DrawProb
+		drawProb, err := trueskill.DrawProbability(*req.DrawProb)
+		if err != nil {
+			panic(err)
+		}
+		opts = append(opts, drawProb)
 	}
 
-	ts, err := trueskill.New(mu, sigma, beta, tau, drawProb)
-	if err != nil {
-		panic(err)
-	}
+	ts := trueskill.New(opts...)
 
-	var players trueskill.Players
+	var players []trueskill.Player
 	for _, p := range req.Players {
 		var player trueskill.Player
 		if p.Mu == 0 && p.Sigma == 0 {
-			player = ts.NewDefaultPlayer()
+			player = ts.NewPlayer()
 		} else {
 			player = trueskill.NewPlayer(p.Mu, p.Sigma)
 		}
