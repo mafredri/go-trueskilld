@@ -5,63 +5,62 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math"
 	"net/http"
 
-	"github.com/julienschmidt/httprouter"
-	"github.com/mafredri/go-trueskill"
+	trueskill "github.com/mafredri/go-trueskill"
 )
 
-// RoundedFloat64 provides a JSON encodable rounded float64
-type RoundedFloat64 float64
-
-// MarshalJSON marhsals a RoundedFloat64
-func (f RoundedFloat64) MarshalJSON() ([]byte, error) {
-	rounded := float64(math.Floor(float64(f)*1000+.5)) / 1000
-	return json.Marshal(rounded)
-}
-
-// PlayerRequest represent a player entry in the JSON request.
-type PlayerRequest struct {
-	Mu    float64 `json:"mu"`
-	Sigma float64 `json:"sigma"`
+// Player represent a player entry.
+type Player struct {
+	Mu        float64 `json:"mu"`
+	Sigma     float64 `json:"sigma"`
+	TrueSkill float64 `json:"trueskill"` // Used for response.
 }
 
 // RateRequest represents the JSON request that defines the game setup and players.
 type RateRequest struct {
-	Mu       float64         `json:"mu"`
-	Sigma    float64         `json:"sigma"`
-	Beta     float64         `json:"beta"`
-	Tau      float64         `json:"tau"`
-	DrawProb *float64        `json:"draw_probability"`
-	Players  []PlayerRequest `json:"players"`
-}
-
-// PlayerResponse represents the players new mu, sigma and conservative true skill.
-type PlayerResponse struct {
-	Mu        RoundedFloat64 `json:"mu"`
-	Sigma     RoundedFloat64 `json:"sigma"`
-	TrueSkill RoundedFloat64 `json:"trueskill"`
+	Mu       float64  `json:"mu"`
+	Sigma    float64  `json:"sigma"`
+	Beta     float64  `json:"beta"`
+	Tau      float64  `json:"tau"`
+	DrawProb *float64 `json:"draw_probability"`
+	Players  []Player `json:"players"`
 }
 
 // RatedResponse represents the response from the rate endpoint containing all rated players and the probability of match outcome.
 type RatedResponse struct {
-	Players     []PlayerResponse `json:"players"`
-	Probability RoundedFloat64   `json:"probability_of_outcome"`
+	Players     []Player `json:"players"`
+	Probability float64  `json:"probability_of_outcome"`
 }
 
 // Index shows that the trueskilld service is running.
-func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func Index(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
 	fmt.Fprint(w, "trueskilld v0.1!\n")
 }
 
 // Rate takes a request to rate players and calculates their true skills.
-func Rate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	decoder := json.NewDecoder(r.Body)
+func Rate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
+
 	var req RateRequest
-	err := decoder.Decode(&req)
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		panic(err)
+		log.Printf("Bad request: %v", err)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Players) < 2 {
+		message := fmt.Sprintf("A minimum of 2 players must be provided")
+		http.Error(w, message, http.StatusBadRequest)
+		return
 	}
 
 	var opts []trueskill.Option
@@ -80,7 +79,10 @@ func Rate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	if req.DrawProb != nil {
 		drawProb, err := trueskill.DrawProbability(*req.DrawProb)
 		if err != nil {
-			panic(err)
+			message := fmt.Sprintf("Could not calculate draw probability: %v", err)
+			log.Println(message)
+			http.Error(w, message, http.StatusInternalServerError)
+			return
 		}
 		opts = append(opts, drawProb)
 	}
@@ -100,43 +102,49 @@ func Rate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 	adjustedPlayers, probability := ts.AdjustSkills(players, false)
 
-	var newPlayers []PlayerResponse
+	var newPlayers []Player
 	for _, p := range adjustedPlayers {
-		newPlayers = append(newPlayers, PlayerResponse{
-			Mu:        RoundedFloat64(p.Mu()),
-			Sigma:     RoundedFloat64(p.Sigma()),
-			TrueSkill: RoundedFloat64(ts.TrueSkill(p)),
+		newPlayers = append(newPlayers, Player{
+			Mu:        p.Mu(),
+			Sigma:     p.Sigma(),
+			TrueSkill: ts.TrueSkill(p),
 		})
 	}
 
 	resp := RatedResponse{
 		Players:     newPlayers,
-		Probability: RoundedFloat64(probability * 100),
+		Probability: probability * 100,
 	}
 
-	str, err := json.Marshal(resp)
+	b, err := json.Marshal(resp)
 	if err != nil {
-		panic(err)
+		message := fmt.Sprintf("Could not marshal response: %v", err)
+		log.Println(message)
+		http.Error(w, message, http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token")
-
-	fmt.Fprintf(w, string(str))
+	w.Write(b)
 }
 
 func main() {
-	bind := flag.String("bind", "", "Run server on interface (e.g. 127.0.0.1)")
-	port := flag.Int("port", 8495, "Run server on port")
+	bind := flag.String("bind", "127.0.0.1", "Bind to interface")
+	port := flag.Int("port", 8495, "Listen on port")
 	flag.Parse()
 
-	router := httprouter.New()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", Index)
+	mux.HandleFunc("/rate", Rate)
 
-	router.GET("/", Index)
-	router.POST("/rate", Rate)
+	addr := fmt.Sprintf("%s:%d", *bind, *port)
+	log.Printf("Starting trueskilld on: '%s'", addr)
+	log.Fatal(http.ListenAndServe(addr, logRequest(mux)))
+}
 
-	listen := fmt.Sprintf("%s:%d", *bind, *port)
-	log.Printf("Starting trueskilld on: '%s'", listen)
-	log.Fatal(http.ListenAndServe(listen, router))
+func logRequest(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s %s\n", r.RemoteAddr, r.Method, r.URL)
+		next.ServeHTTP(w, r)
+	})
 }
